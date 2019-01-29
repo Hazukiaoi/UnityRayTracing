@@ -256,8 +256,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   MAX_STEP: 4
-  screenWidth: 96
-  screenHeight: 54
+  screenWidth: 160
+  screenHeight: 90
+  process: 0
+  fullPixel: 0
 --- !u!1 &849855816
 GameObject:
   m_ObjectHideFlags: 0

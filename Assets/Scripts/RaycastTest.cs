@@ -23,47 +23,97 @@ public class RaycastTest : MonoBehaviour
     /// </summary>
     Vector3 cameraPosition;
 
+    Texture2D t2d;
+
     public int screenWidth = 160;
     public int screenHeight = 90;
 
-    int cX, cY;
+    //检查进度
+    bool[] allFinish; 
+    public int process = 0;
+    public int fullPixel = 0;
     //测试用颜色
     Color[] _c = new Color[] { Color.black, Color.red, Color.yellow, Color.green, Color.cyan };
     // Use this for initialization
     void Start()
     {
+        Screen.SetResolution(192, 108, false);
+
+        fullPixel = screenWidth * screenHeight;
+        allFinish = new bool[4] { false, false, false, false };
+        t2d = new Texture2D(screenWidth, screenHeight, TextureFormat.ARGB32, false);
+        process = 0;
+
+        int halfW = screenWidth / 2;
+        int halfY = screenHeight / 2;
+        Vector2Int ldx = new Vector2Int(0, halfW);
+        Vector2Int ldy = new Vector2Int(0, halfY);
+
+        Vector2Int rdx = new Vector2Int(halfW, screenWidth);
+        Vector2Int rdy = new Vector2Int(0, halfY);
+
+        Vector2Int ltx = new Vector2Int(0, halfW);
+        Vector2Int lty = new Vector2Int(halfY, screenHeight);
+
+        Vector2Int rtx = new Vector2Int(halfW, screenWidth);
+        Vector2Int rty = new Vector2Int(halfY, screenHeight);
+
         SetUpScene();
         GetCameraData();
 
-        StartCoroutine("Tracing");
+        StartCoroutine(Tracing(ldx,ldy));
+        StartCoroutine(Tracing(rdx, rdy));
+        StartCoroutine(Tracing(ltx, lty));
+        StartCoroutine(Tracing(rtx, rty));
+
+        StartCoroutine(WaitFinish());
     }
 
     private void OnGUI()
     {
-        GUI.Box(new Rect(0, 0, 50, 20), cX + " | " + cY);
+        GUI.Box(new Rect(0, 0, 192, 20), process + " | " + fullPixel);
     }
 
-    IEnumerator Tracing()
+    IEnumerator Tracing(Vector2Int xRange, Vector2Int yRange)
     {
-        int i = 0;
+        
         Texture2D t2d = new Texture2D(screenWidth, screenHeight, TextureFormat.ARGB32, false);
 
-        for (int x = 0; x < screenWidth; x++)
+        for (int x = xRange.x; x < xRange.y; x++)
         {
-            cX = x;
-            for (int y = 0; y < screenHeight; y++)
+            for (int y = yRange.x; y < yRange.y; y++)
             {
                 Ray _r = GetCurrentPixelRay(x, y);
                 Color _c = RayTracing(_r);
                 t2d.SetPixel(x, y, _c);
-                cY = y;
+                process++;
                 yield return null;
             }
+        }       
+    }
+
+    IEnumerator WaitFinish()
+    {
+        int finishCount = 0;
+        while (true)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (allFinish[i])
+                {
+                    finishCount++;
+                }
+            }
+            if (finishCount < 4)
+                finishCount = 0;
+            else break;
+            yield return null;
         }
         t2d.Apply();
-        System.IO.File.WriteAllBytes("Assets/Save.png", t2d.EncodeToPNG());
+        System.IO.File.WriteAllBytes(Application.dataPath + "/Save.png", t2d.EncodeToPNG());
         Debug.Log("Finish");
     }
+
 
     /// <summary>
     /// 初始化场景
