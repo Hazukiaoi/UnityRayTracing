@@ -4,28 +4,60 @@ using UnityEngine;
 
 public class RaycastTest : MonoBehaviour
 {
-    const int MAX_STEP = 4;
+    /// <summary>
+    /// 射线反射次数
+    /// </summary>
+    public int MAX_STEP = 1;
 
+    /// <summary>
+    /// 场景Mesh
+    /// </summary>
     Mesh mesh;
 
-    List<Ray> rays;
-
+    /// <summary>
+    /// 相机角
+    /// </summary>
     Vector3[] cameraCorn;
+    /// <summary>
+    /// 相机坐标
+    /// </summary>
     Vector3 cameraPosition;
 
-    [Range(0,1)]
-    public float h = 0;
+    public int screenWidth = 160;
+    public int screenHeight = 90;
 
-    [Range(0, 1)]
-    public float v = 0;
+
+    //测试用颜色
+    Color[] _c = new Color[] { Color.black, Color.red, Color.yellow, Color.green, Color.cyan };
     // Use this for initialization
     void Start()
     {
         SetUpScene();
         GetCameraData();
-    
-        rays = new List<Ray>();
 
+        StartCoroutine("Tracing");
+    }
+
+    IEnumerator Tracing()
+    {
+        int i = 0;
+        Texture2D t2d = new Texture2D(screenWidth, screenHeight, TextureFormat.ARGB32, false);
+
+        for (int x = 0; x < screenWidth; x++)
+        {
+            for (int y = 0; y < screenHeight; y++)
+            {
+                Ray _r = GetCurrentPixelRay(x, y);
+                Color _c = RayTracing(_r);
+                t2d.SetPixel(x, y, _c);
+                i++;
+                Debug.Log(i);
+                yield return null;
+            }
+        }
+        t2d.Apply();
+        System.IO.File.WriteAllBytes("Assets/Save.png", t2d.EncodeToPNG());
+        Debug.Log("Finish");
     }
 
     /// <summary>
@@ -60,32 +92,36 @@ public class RaycastTest : MonoBehaviour
         }
     }
 
-    Color[] _c = new Color[] { Color.black, Color.red, Color.yellow, Color.green, Color.cyan };
-
-    void Update ()
+    /// <summary>
+    /// 输入当前屏幕坐标，并获得射线
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <returns></returns>
+    Ray GetCurrentPixelRay(float x, float y)
     {
-
-        for (int i = 0;i < 4; i++)
-        {
-            Debug.DrawRay(cameraPosition, cameraCorn[i], Color.blue);
-
-        }
-
+        float h = x / (float)screenWidth;
+        float v = y / (float)screenHeight;
         Vector3 _hd = Vector3.Lerp(cameraCorn[0], cameraCorn[3], h);
         Vector3 _ht = Vector3.Lerp(cameraCorn[1], cameraCorn[2], h);
-        Vector3 _c = Vector3.Lerp(_hd, _ht, v);
+        return new Ray(cameraPosition, Vector3.Lerp(_hd, _ht, v).normalized);
+    }
 
-        Debug.DrawRay(cameraPosition, _c.normalized, Color.red);
-
-        return;
-
-        rays.Clear();
-        Ray startRay = new Ray(transform.position, transform.forward);
-        rays.Add(startRay);
+    /// <summary>
+    /// 计算光线追踪
+    /// </summary>
+    /// <param name="ray"></param>
+    /// <returns></returns>
+    Color RayTracing(Ray ray)
+    {
+        Ray _ray = new Ray(ray.origin, ray.direction);
         bool isCast = false;
         bool isCastPrv = true;
-        
-        for(int step = 0; step < MAX_STEP; step++)
+        bool isCastAnything = false;
+
+        Color colorStart = Color.white;
+
+        for (int step = 0; step < MAX_STEP; step++)
         {
             //如果上一帧没射中东西，则表明已经结束追踪
             if (!isCastPrv)
@@ -108,7 +144,7 @@ public class RaycastTest : MonoBehaviour
                 int cPoint_2 = mesh.triangles[i + 2];
 
                 if (RayUnit.RayCast(
-                    rays[step],
+                    _ray,
                     mesh.vertices[cPoint_0],
                     mesh.vertices[cPoint_1],
                     mesh.vertices[cPoint_2],
@@ -117,36 +153,42 @@ public class RaycastTest : MonoBehaviour
                     ref v))
                 {
                     //当目标位于正方向
-                    if(t > 0)
+                    if (t > 0)
                     {
                         if (t < _cDistance)
                         {
                             normal = (Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_1], u) + Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_2], v)) / 2;
-                            castPoint = rays[step].GetPoint(t) + normal * 1e-5f;              //不添加上偏移量会导致错误的cast     
+                            castPoint = _ray.GetPoint(t) + normal * 1e-5f;              //不添加上偏移量会导致错误的cast     
                             isCast = true;
+                            isCastAnything = true;
                             _cDistance = t;
                         }
                     }
 
                 }
             }
-
-            //如果射中东西，则把反射后的路径加入路径列表
+            //如果射中东西，则更新ray的位置与方向，并衰减光照
             if (isCast)
             {
-                if(step +1 < MAX_STEP)
-                {
-                    rays.Add(new Ray(castPoint, Vector3.Reflect(rays[step].direction, normal).normalized));
-                    //Debug.DrawRay(castPoint, normal, Color.blue);
-                }
+                //_ray.origin = castPoint;
+                //_ray.direction = Vector3.Reflect(_ray.direction, normal).normalized;
+                //colorStart *= 0.7f;
+                colorStart.r = (normal.x + 1) / 2.0f;
+                colorStart.g = (normal.y + 1) / 2.0f;
+                colorStart.b = (normal.z + 1) / 2.0f;
             }
 
             isCastPrv = isCast;
         }
 
-        //for(int i = 0;i < rays.Count ; i++)
-        //{
-        //    Debug.DrawRay(rays[i].origin, rays[i].direction * 5, _c[i]);
-        //}
-	}
+        if (isCastAnything)
+        {
+            colorStart.a = 1.0f;
+            return colorStart;
+        }
+        else
+        {
+            return Color.black;
+        }
+    }
 }
