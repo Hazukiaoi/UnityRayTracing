@@ -26,7 +26,7 @@ public class RaycastTest : MonoBehaviour
     public int screenWidth = 160;
     public int screenHeight = 90;
 
-
+    int cX, cY;
     //测试用颜色
     Color[] _c = new Color[] { Color.black, Color.red, Color.yellow, Color.green, Color.cyan };
     // Use this for initialization
@@ -38,6 +38,11 @@ public class RaycastTest : MonoBehaviour
         StartCoroutine("Tracing");
     }
 
+    private void OnGUI()
+    {
+        GUI.Box(new Rect(0, 0, 50, 20), cX + " | " + cY);
+    }
+
     IEnumerator Tracing()
     {
         int i = 0;
@@ -45,13 +50,13 @@ public class RaycastTest : MonoBehaviour
 
         for (int x = 0; x < screenWidth; x++)
         {
+            cX = x;
             for (int y = 0; y < screenHeight; y++)
             {
                 Ray _r = GetCurrentPixelRay(x, y);
                 Color _c = RayTracing(_r);
                 t2d.SetPixel(x, y, _c);
-                i++;
-                Debug.Log(i);
+                cY = y;
                 yield return null;
             }
         }
@@ -75,6 +80,11 @@ public class RaycastTest : MonoBehaviour
             _cin[i].transform = _mfs[i].transform.localToWorldMatrix;
         }
         mesh.CombineMeshes(_cin);
+
+        for(int i = 0; i < _mfs.Length; i++)
+        {
+            _mfs[i].gameObject.SetActive(false);
+        }
     }
 
     /// <summary>
@@ -170,12 +180,12 @@ public class RaycastTest : MonoBehaviour
             //如果射中东西，则更新ray的位置与方向，并衰减光照
             if (isCast)
             {
-                //_ray.origin = castPoint;
-                //_ray.direction = Vector3.Reflect(_ray.direction, normal).normalized;
-                //colorStart *= 0.7f;
-                colorStart.r = (normal.x + 1) / 2.0f;
-                colorStart.g = (normal.y + 1) / 2.0f;
-                colorStart.b = (normal.z + 1) / 2.0f;
+                _ray.origin = castPoint;
+                _ray.direction = Vector3.Reflect(_ray.direction, normal).normalized;
+                colorStart *= 0.5f;
+                //colorStart.r = (normal.x + 1) / 2.0f;
+                //colorStart.g = (normal.y + 1) / 2.0f;
+                //colorStart.b = (normal.z + 1) / 2.0f;
             }
 
             isCastPrv = isCast;
