@@ -75,7 +75,7 @@ public class RaycastTest : MonoBehaviour
                         if (t < _cDistance)
                         {
                             normal = (Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_1], u) + Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_2], v)) / 2;
-                            castPoint = rays[step].GetPoint(t);                   
+                            castPoint = rays[step].GetPoint(t) + normal *0.0001f;                   
                             isCast = true;
                             _cDistance = t;
                         }
