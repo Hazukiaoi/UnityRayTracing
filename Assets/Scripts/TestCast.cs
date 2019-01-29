@@ -4,29 +4,27 @@ using UnityEngine;
 
 public class TestCast : MonoBehaviour {
 
-    const int MAX_STEP = 10;
+    Ray rays;
+    Ray raysRef;
 
-    Mesh mesh;
-
-    List<Ray> rays;
-
+    public Transform normal;
+    public Transform Ins;
     // Use this for initialization
     void Start () {
-        //初始化场景
-        MeshFilter[] _mfs = FindObjectsOfType<MeshFilter>();
-        CombineInstance[] _cin = new CombineInstance[_mfs.Length];
-        for (int i = 0; i < _mfs.Length; i++)
-        {
-            _cin[i].mesh = _mfs[i].mesh;
-            _cin[i].transform = _mfs[i].transform.localToWorldMatrix;
-        }
-        mesh.CombineMeshes(_cin);
-
-        rays = new List<Ray>();
+        rays = new Ray();
+        raysRef = new Ray();
     }
 	
 	// Update is called once per frame
 	void Update () {
-		
-	}
+        rays.origin = Ins.position;
+        rays.direction = Ins.forward;
+
+
+        raysRef.origin = normal.position;
+        raysRef.direction = Vector3.Reflect(rays.direction, normal.up);
+
+        Debug.DrawRay(rays.origin, rays.direction * 10, Color.red);
+        Debug.DrawRay(raysRef.origin, raysRef.direction * 10, Color.blue);
+    }
 }

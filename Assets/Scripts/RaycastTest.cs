@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class RaycastTest : MonoBehaviour
 {
-    const int MAX_STEP = 10;
+    const int MAX_STEP = 4;
 
     Mesh mesh;
 
@@ -25,30 +25,32 @@ public class RaycastTest : MonoBehaviour
         mesh.CombineMeshes(_cin);
 
         rays = new List<Ray>();
+    }
 
-        Debug.Log(mesh.triangles.Length);
-    }	
-	
-    
+
+    Color[] _c = new Color[] { Color.black, Color.red, Color.yellow, Color.green, Color.cyan };
+
 	void Update ()
     {
 
+        rays.Clear();
         Ray startRay = new Ray(transform.position, transform.forward);
         rays.Add(startRay);
         bool isCast = false;
         bool isCastPrv = true;
-
+        
         for(int step = 0; step < MAX_STEP; step++)
         {
             //如果上一帧没射中东西，则表明已经结束追踪
             if (!isCastPrv)
-                return;
+                break;
 
             float _cDistance = float.MaxValue;
             Vector3 castPoint = Vector3.zero;
             Vector3 normal = Vector3.zero;
             isCast = false;
 
+            //找到射线正方向上最近的一个点
             for (int i = 0; i < mesh.triangles.Length - 3; i = i + 3)
             {
                 float t = float.MaxValue;
@@ -68,13 +70,17 @@ public class RaycastTest : MonoBehaviour
                     ref u,
                     ref v))
                 {
-                    if (t < _cDistance)
+                    if(t > 0)
                     {
-                        isCast = true;
-                        _cDistance = t;
-                        castPoint = rays[step].GetPoint(t);
-                        normal = (Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_1], u) + Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_2], v)) / 2;
+                        if (t < _cDistance)
+                        {
+                            normal = (Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_1], u) + Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_2], v)) / 2;
+                            castPoint = rays[step].GetPoint(t);                   
+                            isCast = true;
+                            _cDistance = t;
+                        }
                     }
+
                 }
             }
 
@@ -83,16 +89,17 @@ public class RaycastTest : MonoBehaviour
             {
                 if(step +1 < MAX_STEP)
                 {
-                    rays.Add(new Ray(castPoint, Vector3.Reflect(rays[step].direction, normal)));
+                    rays.Add(new Ray(castPoint, Vector3.Reflect(rays[step].direction, normal).normalized));
+                    Debug.DrawRay(castPoint, normal, Color.blue);
                 }
             }
 
             isCastPrv = isCast;
         }
 
-        for(int i = 0;i < rays.Count - 1; i++)
+        for(int i = 0;i < rays.Count ; i++)
         {
-            Debug.DrawLine(rays[i].origin, rays[i + 1].origin, Color.red);
+            Debug.DrawRay(rays[i].origin, rays[i].direction * 5, _c[i]);
         }
 	}
 }
