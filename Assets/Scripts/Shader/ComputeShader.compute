@@ -129,17 +129,16 @@ float3 RayTracing(Ray ray)
 		}
 		if(isCast)
 		{
-			//_ray.origin = castPoint;
-			//_ray.direction = normalize(reflect(_ray.direction, normal));
-			//colorStart *= 0.5;
+			_ray.origin = castPoint;
+			_ray.direction = normalize(reflect(_ray.direction, normal));
+			colorStart *= 0.5;
 		}
 		isCastPrv = isCast;
 	}
 
 	if(isCastAnything)
 	{
-		//return colorStart;
-		return 1.0;
+		return colorStart;
 	}
 	else
 	{
@@ -148,14 +147,16 @@ float3 RayTracing(Ray ray)
 }
 
 //计算当前屏幕位置的射线
-float3 GetCurrentRay(float2 pos)
+Ray GetCurrentRay(float2 pos)
 {
+	Ray r;
 	float h = pos.x / width;
 	float v = pos.y / height;
 	float3 _hd = lerp(camCorn[0], camCorn[3], h).xyz;
 	float3 _ht = lerp(camCorn[1], camCorn[2], h).xyz;
-	float3 _cDir = lerp(_hd, _ht, v) - camPos;
-	return _cDir;
+	r.direction  = lerp(_hd, _ht, v);
+	r.origin = camPos;
+	return r;
 }
 
 [numthreads(8,8,1)]
@@ -172,15 +173,12 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	for(int i = 0; i < max_sample; i++)
 	{
-		_cRay.origin = camPos;
-		_cRay.direction = GetCurrentRay(id.xy + (Step3T(id.xy, i * 0.1) * 0.2f).xy);
-
+		_cRay = GetCurrentRay(id.xy + Step3T(id.xy, i * 0.1).xy);
 		c += RayTracing(_cRay);
 	}
 	c /= max_sample;
 
-
-
 	Result[id.xy] = float4(c,1);
+	
 	
 }

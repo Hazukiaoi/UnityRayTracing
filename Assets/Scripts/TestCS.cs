@@ -76,7 +76,7 @@ public class TestCS : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             _cameraCorn[i] = cam.transform.localToWorldMatrix * _cameraCorn[i];
-            cameraCorn[i] = new Vector4(_cameraCorn[i].x, _cameraCorn[i].y, _cameraCorn[i].z, 1);
+            cameraCorn[i] = new Vector4(_cameraCorn[i].x, _cameraCorn[i].y, _cameraCorn[i].z);
         }
     }
 
@@ -92,7 +92,7 @@ public class TestCS : MonoBehaviour
         float v = y / (float)screenHeight;
         Vector3 _hd = Vector3.Lerp(cameraCorn[0], cameraCorn[3], h);
         Vector3 _ht = Vector3.Lerp(cameraCorn[1], cameraCorn[2], h);
-        return new Ray(cameraPosition, Vector3.Lerp(_hd, _ht, v).normalized);
+        return new Ray(cameraPosition, Vector3.Lerp(_hd, _ht, v));
     }
 
     /// <summary>
@@ -180,11 +180,23 @@ public class TestCS : MonoBehaviour
         }
     }
 
+
+    //测试数据
+    Vector3[] perDirData;
+    ComputeBuffer perDir;
+
     // Use this for initialization
-    void Start()
+    private void Start()
     {
         SetUpScene();
         GetCameraData();
+
+        StartCoroutine("OutputPerDirect");
+
+    }
+
+    IEnumerator OutputPerDirect()
+    {
 
         renderTexture = new RenderTexture(screenWidth, screenWidth, 24);
         renderTexture.enableRandomWrite = true;//允许随机写入
@@ -205,28 +217,34 @@ public class TestCS : MonoBehaviour
         shader.SetInt("max_step", MAX_STEP);
         shader.SetInt("max_sample", MAX_SAMPLE);
 
+        yield return null;
+
         //传Mesh数据
         shader.SetInt("vertexCount", mesh.vertexCount);
         shader.SetInt("trianglesCount", mesh.triangles.Length);
         ComputeBuffer tris = new ComputeBuffer(mesh.triangles.Length, sizeof(int));
         tris.SetData(mesh.triangles);
 
-        ComputeBuffer vAndN = new ComputeBuffer(mesh.vertexCount, 3 * 3 * 4);
+        ComputeBuffer vAndN = new ComputeBuffer(mesh.vertexCount, sizeof(float) * 6);
         List<VertAndNormal> _vAndNData = new List<VertAndNormal>();
-        for(int i = 0; i < mesh.vertexCount; i++)
+        for (int i = 0; i < mesh.vertexCount; i++)
         {
-            _vAndNData.Add(new VertAndNormal() {
-                vertices = mesh.vertices[i], normlas = mesh.normals[i]
+            _vAndNData.Add(new VertAndNormal()
+            {
+                vertices = mesh.vertices[i],
+                normlas = mesh.normals[i]
             });
         }
         vAndN.SetData(_vAndNData);
 
         shader.SetBuffer(kid, "triangles", tris);
         shader.SetBuffer(kid, "vertAndNormal", vAndN);
+        yield return null;
 
         //执行
         shader.Dispatch(kid, renderTexture.width / 8, renderTexture.height / 8, 1);
     }
+
 
     Rect rect = new Rect(0, 0, 256, 256);
     private void OnGUI()

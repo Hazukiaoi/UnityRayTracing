@@ -242,8 +242,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   shader: {fileID: 7200000, guid: 36a4dda0e844d4045a7368e8c8e6877d, type: 3}
   t2d: {fileID: 0}
-  MAX_STEP: 1
-  MAX_SAMPLE: 20
+  renderTexture: {fileID: 0}
+  MAX_STEP: 10
+  MAX_SAMPLE: 30
   screenWidth: 512
   screenHeight: 512
 --- !u!1 &1475199601
