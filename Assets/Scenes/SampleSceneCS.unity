@@ -244,9 +244,9 @@ MonoBehaviour:
   t2d: {fileID: 0}
   renderTexture: {fileID: 0}
   MAX_STEP: 10
-  MAX_SAMPLE: 30
-  screenWidth: 512
-  screenHeight: 512
+  MAX_SAMPLE: 60
+  screenWidth: 256
+  screenHeight: 256
 --- !u!1 &1475199601
 GameObject:
   m_ObjectHideFlags: 0

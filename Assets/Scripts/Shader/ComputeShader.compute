@@ -173,7 +173,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	for(int i = 0; i < max_sample; i++)
 	{
-		_cRay = GetCurrentRay(id.xy + Step3T(id.xy, i * 0.1).xy);
+		_cRay = GetCurrentRay(id.xy);
+		_cRay.direction.xy += (Step3T(id.xy, i * 0.2).xy * 2 - 1) * 0.0005;
+		_cRay.direction = normalize(_cRay.direction);
 		c += RayTracing(_cRay);
 	}
 	c /= max_sample;
