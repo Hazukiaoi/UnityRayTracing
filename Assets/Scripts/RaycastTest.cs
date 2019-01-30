@@ -46,27 +46,13 @@ public class RaycastTest : MonoBehaviour
 
         int halfW = screenWidth / 2;
         int halfY = screenHeight / 2;
-        Vector2Int ldx = new Vector2Int(0, halfW);
-        Vector2Int ldy = new Vector2Int(0, halfY);
-
-        Vector2Int rdx = new Vector2Int(halfW, screenWidth);
-        Vector2Int rdy = new Vector2Int(0, halfY);
-
-        Vector2Int ltx = new Vector2Int(0, halfW);
-        Vector2Int lty = new Vector2Int(halfY, screenHeight);
-
-        Vector2Int rtx = new Vector2Int(halfW, screenWidth);
-        Vector2Int rty = new Vector2Int(halfY, screenHeight);
+        Vector2Int ldx = new Vector2Int(0, screenWidth);
+        Vector2Int ldy = new Vector2Int(0, screenHeight);
 
         SetUpScene();
         GetCameraData();
 
         StartCoroutine(Tracing(ldx,ldy));
-        StartCoroutine(Tracing(rdx, rdy));
-        StartCoroutine(Tracing(ltx, lty));
-        StartCoroutine(Tracing(rtx, rty));
-
-        StartCoroutine(WaitFinish());
     }
 
     private void OnGUI()
@@ -75,10 +61,7 @@ public class RaycastTest : MonoBehaviour
     }
 
     IEnumerator Tracing(Vector2Int xRange, Vector2Int yRange)
-    {
-        
-        Texture2D t2d = new Texture2D(screenWidth, screenHeight, TextureFormat.ARGB32, false);
-
+    {      
         for (int x = xRange.x; x < xRange.y; x++)
         {
             for (int y = yRange.x; y < yRange.y; y++)
@@ -89,31 +72,10 @@ public class RaycastTest : MonoBehaviour
                 process++;
                 yield return null;
             }
-        }       
-    }
-
-    IEnumerator WaitFinish()
-    {
-        int finishCount = 0;
-        while (true)
-        {
-            for (int i = 0; i < 4; i++)
-            {
-                if (allFinish[i])
-                {
-                    finishCount++;
-                }
-            }
-            if (finishCount < 4)
-                finishCount = 0;
-            else break;
-            yield return null;
         }
         t2d.Apply();
-        System.IO.File.WriteAllBytes(Application.dataPath + "/Save.png", t2d.EncodeToPNG());
-        Debug.Log("Finish");
+        System.IO.File.WriteAllBytes("D:/Project/UnityRayTracing/Save.png", t2d.EncodeToPNG());
     }
-
 
     /// <summary>
     /// 初始化场景

@@ -1,13 +1,162 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
+#include "NoiseCommon.cginc"
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
+struct VertAndNormal
+{
+	float3 vertices;
+	float3 normals;
+};
+
+struct Ray
+{
+	float3 origin;
+	float3 direction;
+};
+
+StructuredBuffer<int> triangles;
+StructuredBuffer<VertAndNormal> vertAndNormal;
+
+//返回结果
 RWTexture2D<float4> Result;
-Texture2D<float4> BaseTexture;
 
-float width;
-float height;
+float	width;
+float	height;
+float4	camCorn[4];
+float3	camPos;
+int		vertexCount;
+int		trianglesCount;
+int		max_step;
+int		max_sample;
+
+//三角求交
+bool RayCast(Ray ray, float3 v0, float3 v1, float3 v2, inout float t, inout float u, inout float v)
+{
+	float3 E1 = v1 - v0;
+    float3 E2 = v2 - v0;
+    float3 P = cross(ray.direction, E2);
+
+	float det = dot(E1, P);
+
+	float3 T;
+	if(det > 0)
+	{
+		T = ray.origin - v0;
+	}
+	else
+	{
+		T = v0 - ray.origin;
+		det = -det;
+	}
+
+	if(det < 1e-5)
+	{
+		return false;
+	}
+	u = dot(T, P);
+	if (u < 0.0 || u > det)
+    {
+        return false;
+    }
+	float3 Q = cross(T, E1);
+	v = dot(ray.direction, Q);
+	if (v < 0.0f || u + v > det)
+    {
+		return false;
+	}
+	t = dot(E2, Q);
+	float fInvDet = 1.0f / det;
+	t *= fInvDet;
+    u *= fInvDet;
+    v *= fInvDet;
+
+	return true;
+}
+
+//光线追踪计算
+float3 RayTracing(Ray ray)
+{
+	Ray _ray = ray;
+
+	bool isCast = false;
+	bool isCastPrv = true;
+	bool isCastAnything = false;
+
+	float3 colorStart = 1;
+
+	for(int i = 0; i < max_step; i++)
+	{
+		if(!isCastPrv)
+		{
+			break;
+		}
+
+		float _cDistance = 99999.0;
+		float3 castPoint = (float3)0.0;
+		float3 normal = (float3)0.0;
+		isCast = false;
+
+		for(int i = 0; i < trianglesCount - 3; i = i + 3)
+		{
+			float t;
+            float u;
+            float v;
+
+			int cPoint_0 = triangles[i];
+            int cPoint_1 = triangles[i + 1];
+            int cPoint_2 = triangles[i + 2];
+
+			if(RayCast(_ray, vertAndNormal[cPoint_0].vertices,
+						vertAndNormal[cPoint_1].vertices,
+						vertAndNormal[cPoint_2].vertices,
+						t,
+						u,
+						v))
+			{
+				if(t > 0)
+				{
+					if(t < _cDistance)
+					{
+                        normal = (lerp(vertAndNormal[cPoint_0].normals, vertAndNormal[cPoint_1].normals, u) 
+							    + lerp(vertAndNormal[cPoint_0].normals,  vertAndNormal[cPoint_2].normals, v)) / 2;
+						castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-5;
+						isCast = true;
+						isCastAnything = true;
+						_cDistance = t;
+					}
+				}
+			}
+		}
+		if(isCast)
+		{
+			//_ray.origin = castPoint;
+			//_ray.direction = normalize(reflect(_ray.direction, normal));
+			//colorStart *= 0.5;
+		}
+		isCastPrv = isCast;
+	}
+
+	if(isCastAnything)
+	{
+		//return colorStart;
+		return 1.0;
+	}
+	else
+	{
+		return 0.0;
+	}
+}
+
+//计算当前屏幕位置的射线
+float3 GetCurrentRay(float2 pos)
+{
+	float h = pos.x / width;
+	float v = pos.y / height;
+	float3 _hd = lerp(camCorn[0], camCorn[3], h).xyz;
+	float3 _ht = lerp(camCorn[1], camCorn[2], h).xyz;
+	float3 _cDir = lerp(_hd, _ht, v) - camPos;
+	return _cDir;
+}
 
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
@@ -16,11 +165,22 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	//Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 
-	int u = (id.x / width) * 848;
-	int v = (id.y / height) * 1200;
-	
-	float4 _c = float4(v,v,0,1);
-
 	//Result[id.xy] = BaseTexture[uint2(u,v)];
-	Result[id.xy] = BaseTexture[uint2(v,u)];
+	//Result[id.xy] = BaseTexture[uint2(v,u)];
+	Ray _cRay;
+	float3 c = 0.0;
+
+	for(int i = 0; i < max_sample; i++)
+	{
+		_cRay.origin = camPos;
+		_cRay.direction = GetCurrentRay(id.xy + (Step3T(id.xy, i * 0.1) * 0.2f).xy);
+
+		c += RayTracing(_cRay);
+	}
+	c /= max_sample;
+
+
+
+	Result[id.xy] = float4(c,1);
+	
 }
