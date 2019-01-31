@@ -28,6 +28,10 @@ int		vertexCount;
 int		trianglesCount;
 int		max_step;
 int		max_sample;
+float4	tile;	//渲染块信息
+
+int randomTime;
+uint3 cid;//当前ID
 
 //三角求交
 bool RayCast(Ray ray, float3 v0, float3 v1, float3 v2, inout float t, inout float u, inout float v)
@@ -96,6 +100,9 @@ float3 RayTracing(Ray ray)
 		float3 normal = (float3)0.0;
 		isCast = false;
 
+		float3 tangent = (float3)0.0;
+		float3 btangent = (float3)0.0;
+
 		for(int i = 0; i < trianglesCount - 3; i = i + 3)
 		{
 			float t;
@@ -119,7 +126,8 @@ float3 RayTracing(Ray ray)
 					{
                         normal = (lerp(vertAndNormal[cPoint_0].normals, vertAndNormal[cPoint_1].normals, u) 
 							    + lerp(vertAndNormal[cPoint_0].normals,  vertAndNormal[cPoint_2].normals, v)) / 2;
-						castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-5;
+						castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-3;
+						tangent = normalize(vertAndNormal[cPoint_1].vertices - vertAndNormal[cPoint_0].vertices);
 						isCast = true;
 						isCastAnything = true;
 						_cDistance = t;
@@ -129,9 +137,23 @@ float3 RayTracing(Ray ray)
 		}
 		if(isCast)
 		{
+
+			btangent = cross(normal, tangent);
+
+			float jitSize = 0.5;
+
+			randomTime += 0.4023;
+			float xj = RandS(cid.xy, randomTime);
+			randomTime += 0.1348;
+			float zj = RandS(cid.xy, randomTime);
+
 			_ray.origin = castPoint;
-			_ray.direction = normalize(reflect(_ray.direction, normal));
-			colorStart *= 0.5;
+			_ray.direction = normalize(reflect(_ray.direction, normalize(normal + float3(xj * jitSize , 0, zj * jitSize))));
+			//模拟一下漫反射给一个随机的反射角度
+
+			//根据距离衰减一下
+			float maxDistance = 10;
+			colorStart *= lerp(0.4, 1, clamp(_cDistance, 0.0, maxDistance) / maxDistance);
 		}
 		isCastPrv = isCast;
 	}
@@ -142,7 +164,7 @@ float3 RayTracing(Ray ray)
 	}
 	else
 	{
-		return 0.0;
+		return float3(0.3,0.5,0.8);
 	}
 }
 
@@ -150,8 +172,9 @@ float3 RayTracing(Ray ray)
 Ray GetCurrentRay(float2 pos)
 {
 	Ray r;
-	float h = pos.x / width;
-	float v = pos.y / height;
+	//计算的时候把当前渲染块的偏移量也计算上
+	float h = (pos.x + tile.x * tile.z) / width;
+	float v = (pos.y + tile.y * tile.w) / height;
 	float3 _hd = lerp(camCorn[0], camCorn[3], h).xyz;
 	float3 _ht = lerp(camCorn[1], camCorn[2], h).xyz;
 	r.direction  = lerp(_hd, _ht, v);
@@ -162,6 +185,7 @@ Ray GetCurrentRay(float2 pos)
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+	randomTime = 0;
 	// TODO: insert actual code here!
 
 	//Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
@@ -172,13 +196,16 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 	float3 c = 0.0;
 
 	for(int i = 0; i < max_sample; i++)
-	{
-		_cRay = GetCurrentRay(id.xy);
-		_cRay.direction.xy += (Step3T(id.xy, i * 0.2).xy * 2 - 1) * 0.0005;
+	{	
+		//偏移一下像素去计算采样
+		cid.xy = id.xy + RandS(id.xy, float2(randomTime.xx));
+		randomTime += float(i) / 10.0;
+		//获得设想
+		_cRay = GetCurrentRay(cid.xy);
 		_cRay.direction = normalize(_cRay.direction);
 		c += RayTracing(_cRay);
 	}
-	c /= max_sample;
+	c /= (float)max_sample;
 
 	Result[id.xy] = float4(c,1);
 	

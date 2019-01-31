@@ -12,7 +12,8 @@ public class TestCS : MonoBehaviour
     }
 
     //public Material mat;
-    public ComputeShader shader;
+    public ComputeShader RaytracingShader;
+    public ComputeShader texCombineShader;
 
     public Texture2D t2d;
 
@@ -40,6 +41,22 @@ public class TestCS : MonoBehaviour
     public int screenWidth = 512;
     public int screenHeight = 512;
 
+    /// <summary>
+    /// 单一块的长宽高
+    /// </summary>
+    public int tileSize = 64;
+
+    /// <summary>
+    /// 长和宽各需要多少个块
+    /// </summary>
+    public Vector2Int tileCount;
+
+    void RenderTileSetUp()
+    {
+        tileCount = new Vector2Int();
+        tileCount.x = screenWidth % tileSize > 0 ? screenWidth / tileSize + 1 : screenWidth / tileSize;
+        tileCount.y = screenHeight % tileSize > 0 ? screenHeight / tileSize + 1 : screenHeight / tileSize;
+    }
 
     /// <summary>
     /// 初始化场景
@@ -79,107 +96,7 @@ public class TestCS : MonoBehaviour
             cameraCorn[i] = new Vector4(_cameraCorn[i].x, _cameraCorn[i].y, _cameraCorn[i].z);
         }
     }
-
-    /// <summary>
-    /// 输入当前屏幕坐标，并获得射线
-    /// </summary>
-    /// <param name="x"></param>
-    /// <param name="y"></param>
-    /// <returns></returns>
-    Ray GetCurrentPixelRay(float x, float y)
-    {
-        float h = x / (float)screenWidth;
-        float v = y / (float)screenHeight;
-        Vector3 _hd = Vector3.Lerp(cameraCorn[0], cameraCorn[3], h);
-        Vector3 _ht = Vector3.Lerp(cameraCorn[1], cameraCorn[2], h);
-        return new Ray(cameraPosition, Vector3.Lerp(_hd, _ht, v));
-    }
-
-    /// <summary>
-    /// 计算光线追踪
-    /// </summary>
-    /// <param name="ray"></param>
-    /// <returns></returns>
-    Color RayTracing(Ray ray)
-    {
-        Ray _ray = new Ray(ray.origin, ray.direction);
-        bool isCast = false;
-        bool isCastPrv = true;
-        bool isCastAnything = false;
-
-        Color colorStart = Color.white;
-
-        for (int step = 0; step < MAX_STEP; step++)
-        {
-            //如果上一帧没射中东西，则表明已经结束追踪
-            if (!isCastPrv)
-                break;
-
-            float _cDistance = float.MaxValue;
-            Vector3 castPoint = Vector3.zero;
-            Vector3 normal = Vector3.zero;
-            isCast = false;
-
-            //找到射线正方向上最近的一个点
-            for (int i = 0; i < mesh.triangles.Length - 3; i = i + 3)
-            {
-                float t = float.MaxValue;
-                float u = float.MaxValue;
-                float v = float.MaxValue;
-
-                int cPoint_0 = mesh.triangles[i];
-                int cPoint_1 = mesh.triangles[i + 1];
-                int cPoint_2 = mesh.triangles[i + 2];
-
-                if (RayUnit.RayCast(
-                    _ray,
-                    mesh.vertices[cPoint_0],
-                    mesh.vertices[cPoint_1],
-                    mesh.vertices[cPoint_2],
-                    ref t,
-                    ref u,
-                    ref v))
-                {
-                    //当目标位于正方向
-                    if (t > 0)
-                    {
-                        if (t < _cDistance)
-                        {
-                            normal = (Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_1], u) + Vector3.Lerp(mesh.normals[cPoint_0], mesh.normals[cPoint_2], v)) / 2;
-                            castPoint = _ray.GetPoint(t) + normal * 1e-5f;              //不添加上偏移量会导致错误的cast     
-                            isCast = true;
-                            isCastAnything = true;
-                            _cDistance = t;
-                        }
-                    }
-
-                }
-            }
-            //如果射中东西，则更新ray的位置与方向，并衰减光照
-            if (isCast)
-            {
-                _ray.origin = castPoint;
-                _ray.direction = Vector3.Reflect(_ray.direction, normal).normalized;
-                colorStart *= 0.5f;
-                //colorStart.r = (normal.x + 1) / 2.0f;
-                //colorStart.g = (normal.y + 1) / 2.0f;
-                //colorStart.b = (normal.z + 1) / 2.0f;
-            }
-
-            isCastPrv = isCast;
-        }
-
-        if (isCastAnything)
-        {
-            colorStart.a = 1.0f;
-            return colorStart;
-        }
-        else
-        {
-            return Color.black;
-        }
-    }
-
+   
 
     //测试数据
     Vector3[] perDirData;
@@ -190,6 +107,7 @@ public class TestCS : MonoBehaviour
     {
         SetUpScene();
         GetCameraData();
+        RenderTileSetUp();
 
         StartCoroutine("OutputPerDirect");
 
@@ -198,30 +116,30 @@ public class TestCS : MonoBehaviour
     IEnumerator OutputPerDirect()
     {
 
-        renderTexture = new RenderTexture(screenWidth, screenWidth, 24);
+        renderTexture = new RenderTexture(screenWidth, screenHeight, 24);
         renderTexture.enableRandomWrite = true;//允许随机写入
         renderTexture.Create();
 
-        int kid = shader.FindKernel("CSMain");
+        int kid = RaytracingShader.FindKernel("CSMain");
+        int cid = texCombineShader.FindKernel("CSMain");
 
         //传递基础数据
-        shader.SetTexture(kid, "Result", renderTexture);
-        shader.SetFloat("width", screenWidth);
-        shader.SetFloat("height", screenHeight);
+        //shader.SetTexture(kid, "Result", renderTexture);
+        RaytracingShader.SetFloat("width", screenWidth);
+        RaytracingShader.SetFloat("height", screenHeight);
 
         //设置相机数据
-        shader.SetVectorArray("camCorn", cameraCorn);
-        shader.SetVector("camPos", cameraPosition);
+        RaytracingShader.SetVectorArray("camCorn", cameraCorn);
+        RaytracingShader.SetVector("camPos", cameraPosition);
 
         //设置光追数据
-        shader.SetInt("max_step", MAX_STEP);
-        shader.SetInt("max_sample", MAX_SAMPLE);
+        RaytracingShader.SetInt("max_step", MAX_STEP);
+        RaytracingShader.SetInt("max_sample", MAX_SAMPLE);
 
-        yield return null;
 
         //传Mesh数据
-        shader.SetInt("vertexCount", mesh.vertexCount);
-        shader.SetInt("trianglesCount", mesh.triangles.Length);
+        RaytracingShader.SetInt("vertexCount", mesh.vertexCount);
+        RaytracingShader.SetInt("trianglesCount", mesh.triangles.Length);
         ComputeBuffer tris = new ComputeBuffer(mesh.triangles.Length, sizeof(int));
         tris.SetData(mesh.triangles);
 
@@ -237,19 +155,49 @@ public class TestCS : MonoBehaviour
         }
         vAndN.SetData(_vAndNData);
 
-        shader.SetBuffer(kid, "triangles", tris);
-        shader.SetBuffer(kid, "vertAndNormal", vAndN);
-        yield return null;
+        RaytracingShader.SetBuffer(kid, "triangles", tris);
+        RaytracingShader.SetBuffer(kid, "vertAndNormal", vAndN);
 
+        //自动分割Tile
         //执行
-        shader.Dispatch(kid, renderTexture.width / 8, renderTexture.height / 8, 1);
+        for (int x = 0; x < tileCount.x; x++)
+        {
+            for (int y = 0; y < tileCount.y; y++)
+            {
+                Vector4 tileInfo = new Vector4(tileSize, tileSize, x, y);
+
+                RenderTexture rt = RenderTexture.GetTemporary(tileSize, tileSize, 24);
+                rt.enableRandomWrite = true;
+                rt.Create();
+                RaytracingShader.SetTexture(kid, "Result", rt);
+                RaytracingShader.SetVector("tile", tileInfo);
+                RaytracingShader.Dispatch(kid, tileSize / 8, tileSize / 8, 1);
+
+
+                texCombineShader.SetTexture(cid, "Result", renderTexture);
+                texCombineShader.SetTexture(cid, "Tile", rt);
+                texCombineShader.SetInt("offsetU", tileSize * x);
+                texCombineShader.SetInt("offsetV", tileSize * y);
+
+                texCombineShader.Dispatch(cid, tileSize / 8, tileSize / 8, 1);
+                rt.Release();
+                yield return null;
+            }
+        }
+
+        //保存文件
+        RenderTexture _crt = RenderTexture.active;
+        RenderTexture.active = renderTexture;
+        Texture2D save = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.ARGB32, false);
+        save.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+        save.Apply();
+        System.IO.File.WriteAllBytes("Assets/Save.png", save.EncodeToPNG());
     }
 
 
-    Rect rect = new Rect(0, 0, 256, 256);
     private void OnGUI()
     {
         if(renderTexture)
-            GUI.Box(rect, renderTexture);
+            GUI.Box(new Rect(0,0,Screen.width, Screen.height), renderTexture);
     }
 }
