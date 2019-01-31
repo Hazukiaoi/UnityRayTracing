@@ -81,11 +81,11 @@ bool RayCast(Ray ray, float3 v0, float3 v1, float3 v2, inout float t, inout floa
 }
 
 //计算光照(只计算是不是在暗区内)
-float calcDirLight(float3 hitPoint, float3 castNormal)
+float calcDirLight(float3 hitPoint, float3 lightJitter, float3 castNormal)
 {
 	Ray _ray;
 	_ray.origin = hitPoint;
-	_ray.direction = sun.xyz;
+	_ray.direction = -sun.xyz + lightJitter;
 
 	//代码和遍历碰撞一样
 	//从碰撞点向太阳方向发射线
@@ -119,7 +119,7 @@ float calcDirLight(float3 hitPoint, float3 castNormal)
 				{
                     normal = (lerp(vertAndNormal[cPoint_0].normals, vertAndNormal[cPoint_1].normals, u) 
 							+ lerp(vertAndNormal[cPoint_0].normals,  vertAndNormal[cPoint_2].normals, v)) / 2;
-					castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-3;
+					castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-4;
 					isCast = true;
 					_cDistance = t;
 				}
@@ -128,12 +128,12 @@ float calcDirLight(float3 hitPoint, float3 castNormal)
 	}
 
 
-	float _nDotl = saturate(dot(castNormal, -1 * sun.xyz));
+	float _nDotl = saturate(dot(castNormal, -sun.xyz));
 
 
 	if(isCast)
 	{
-		return 0.0;
+		return min(0.0, _nDotl);
 	}
 	else
 	{
@@ -154,6 +154,8 @@ float3 RayTracing(Ray ray)
 
 	float3 colorStart = 1;
 	float _lightPower = sun.w;
+	float _shadowPower = 0.0;
+	float maxStep = 0;
 
 	for(int i = 0; i < max_step; i++)
 	{
@@ -193,7 +195,7 @@ float3 RayTracing(Ray ray)
 					{
                         normal = (lerp(vertAndNormal[cPoint_0].normals, vertAndNormal[cPoint_1].normals, u) 
 							    + lerp(vertAndNormal[cPoint_0].normals,  vertAndNormal[cPoint_2].normals, v)) / 2;
-						castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-3;
+						castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-4;
 						tangent = normalize(vertAndNormal[cPoint_1].vertices - vertAndNormal[cPoint_0].vertices);
 						isCast = true;
 						isCastAnything = true;
@@ -204,35 +206,35 @@ float3 RayTracing(Ray ray)
 		}
 		if(isCast)
 		{
-			colorStart = calcDirLight(castPoint, normalize(normal));
-			//btangent = cross(normal, tangent);
 
-			//float jitSize = 0.3;
+			btangent = cross(normal, tangent);
 
-			//randomTime += 0.4023;
-			//float xj = RandS(cid.xx, randomTime);
-			//randomTime += 0.1348;
-			//float zj = RandS(cid.yy, randomTime);
+			float jitSize = 0.4;
 
-			//_ray.origin = castPoint;
-			//_ray.direction = normalize(reflect(_ray.direction, normalize(normal + float3(xj * jitSize , 0, zj * jitSize))));
-			////模拟一下漫反射给一个随机的反射角度
+			randomTime += 0.4023;
+			float xj = RandS(cid.xy, randomTime);
+			randomTime += 0.1348;
+			float zj = RandS(cid.yx, randomTime);
 
-			////根据距离衰减一下
-			//float maxDistance = 5;
-			//colorStart *= lerp(0.4, 1, clamp(_cDistance, 0.0, maxDistance) / maxDistance);
+			//计算光照
+			maxStep += 1.0;
+			_shadowPower += calcDirLight(castPoint, float3(xj * jitSize * jitSize, 0, zj * jitSize * jitSize), normalize(normal));
+				
+			//计算反射
+			_ray.origin = castPoint;
+			_ray.direction = normalize(reflect(_ray.direction, normalize(normal + float3(xj * jitSize , 0, zj * jitSize))));
+			//模拟一下漫反射给一个随机的反射角度
 
-			////计算当前点的光照信息。
-			//colorStart *= calcDirLight(castPoint, normalize(normal));
-			//_lightPower *= 0.5;//暂时写死灯光的吸收的衰减率是0.5
-
+			//根据距离衰减一下
+			float maxDistance = 2;
+			colorStart *= lerp(0.4, 1, clamp(_cDistance, 0.0, maxDistance) / maxDistance);
 		}
 		isCastPrv = isCast;
 	}
 
 	if(isCastAnything)
 	{
-		return colorStart;
+		return _shadowPower / maxStep * colorStart + float3(0.3,0.5,0.8) * 0.1;
 	}
 	else
 	{
