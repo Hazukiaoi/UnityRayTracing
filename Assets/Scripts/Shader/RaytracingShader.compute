@@ -30,6 +30,9 @@ int		max_step;
 int		max_sample;
 float4	tile;	//渲染块信息
 
+float4 sun; //XYZ 向量 W强度
+
+
 int randomTime;
 uint3 cid;//当前ID
 
@@ -77,6 +80,68 @@ bool RayCast(Ray ray, float3 v0, float3 v1, float3 v2, inout float t, inout floa
 	return true;
 }
 
+//计算光照(只计算是不是在暗区内)
+float calcDirLight(float3 hitPoint, float3 castNormal)
+{
+	Ray _ray;
+	_ray.origin = hitPoint;
+	_ray.direction = sun.xyz;
+
+	//代码和遍历碰撞一样
+	//从碰撞点向太阳方向发射线
+	//如果光路上没碰到东西，就算是亮区
+	//如果光路上碰到东西，就算是暗区
+	float _cDistance = 99999.0;
+	float3 castPoint = (float3)0.0;
+	float3 normal = (float3)0.0;
+	bool isCast = false;
+
+	for(int i = 0; i < trianglesCount - 3; i = i + 3)
+	{
+		float t;
+        float u;
+        float v;
+
+		int cPoint_0 = triangles[i];
+        int cPoint_1 = triangles[i + 1];
+        int cPoint_2 = triangles[i + 2];
+
+		if(RayCast(_ray, vertAndNormal[cPoint_0].vertices,
+					vertAndNormal[cPoint_1].vertices,
+					vertAndNormal[cPoint_2].vertices,
+					t,
+					u,
+					v))
+		{
+			if(t > 0)
+			{
+				if(t < _cDistance)
+				{
+                    normal = (lerp(vertAndNormal[cPoint_0].normals, vertAndNormal[cPoint_1].normals, u) 
+							+ lerp(vertAndNormal[cPoint_0].normals,  vertAndNormal[cPoint_2].normals, v)) / 2;
+					castPoint = (_ray.origin + _ray.direction * t) + normal * 1e-3;
+					isCast = true;
+					_cDistance = t;
+				}
+			}
+		}
+	}
+
+
+	float _nDotl = saturate(dot(castNormal, -1 * sun.xyz));
+
+
+	if(isCast)
+	{
+		return 0.0;
+	}
+	else
+	{
+		return _nDotl;
+	}
+	
+}
+
 //光线追踪计算
 float3 RayTracing(Ray ray)
 {
@@ -85,8 +150,10 @@ float3 RayTracing(Ray ray)
 	bool isCast = false;
 	bool isCastPrv = true;
 	bool isCastAnything = false;
+	bool firstHit = true;
 
 	float3 colorStart = 1;
+	float _lightPower = sun.w;
 
 	for(int i = 0; i < max_step; i++)
 	{
@@ -137,23 +204,28 @@ float3 RayTracing(Ray ray)
 		}
 		if(isCast)
 		{
+			colorStart = calcDirLight(castPoint, normalize(normal));
+			//btangent = cross(normal, tangent);
 
-			btangent = cross(normal, tangent);
+			//float jitSize = 0.3;
 
-			float jitSize = 0.5;
+			//randomTime += 0.4023;
+			//float xj = RandS(cid.xx, randomTime);
+			//randomTime += 0.1348;
+			//float zj = RandS(cid.yy, randomTime);
 
-			randomTime += 0.4023;
-			float xj = RandS(cid.xy, randomTime);
-			randomTime += 0.1348;
-			float zj = RandS(cid.xy, randomTime);
+			//_ray.origin = castPoint;
+			//_ray.direction = normalize(reflect(_ray.direction, normalize(normal + float3(xj * jitSize , 0, zj * jitSize))));
+			////模拟一下漫反射给一个随机的反射角度
 
-			_ray.origin = castPoint;
-			_ray.direction = normalize(reflect(_ray.direction, normalize(normal + float3(xj * jitSize , 0, zj * jitSize))));
-			//模拟一下漫反射给一个随机的反射角度
+			////根据距离衰减一下
+			//float maxDistance = 5;
+			//colorStart *= lerp(0.4, 1, clamp(_cDistance, 0.0, maxDistance) / maxDistance);
 
-			//根据距离衰减一下
-			float maxDistance = 10;
-			colorStart *= lerp(0.4, 1, clamp(_cDistance, 0.0, maxDistance) / maxDistance);
+			////计算当前点的光照信息。
+			//colorStart *= calcDirLight(castPoint, normalize(normal));
+			//_lightPower *= 0.5;//暂时写死灯光的吸收的衰减率是0.5
+
 		}
 		isCastPrv = isCast;
 	}
@@ -167,6 +239,7 @@ float3 RayTracing(Ray ray)
 		return float3(0.3,0.5,0.8);
 	}
 }
+
 
 //计算当前屏幕位置的射线
 Ray GetCurrentRay(float2 pos)

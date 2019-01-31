@@ -51,6 +51,11 @@ public class TestCS : MonoBehaviour
     /// </summary>
     public Vector2Int tileCount;
 
+    /// <summary>
+    /// 主灯光
+    /// </summary>
+    public Light sun;
+
     void RenderTileSetUp()
     {
         tileCount = new Vector2Int();
@@ -136,6 +141,8 @@ public class TestCS : MonoBehaviour
         RaytracingShader.SetInt("max_step", MAX_STEP);
         RaytracingShader.SetInt("max_sample", MAX_SAMPLE);
 
+        //设置灯光数据
+        RaytracingShader.SetVector("sun", new Vector4(sun.transform.forward.x, sun.transform.forward.y, sun.transform.forward.z, sun.intensity));
 
         //传Mesh数据
         RaytracingShader.SetInt("vertexCount", mesh.vertexCount);
